@@ -2,9 +2,10 @@ import type * as THREE from 'three';
 import { CHUNK_HEIGHT, blockIndex, chunkKey } from '../../../shared/constants';
 import { BlockId } from './BlockRegistry';
 
-/** Client-side chunk: block data plus its renderable mesh (if any). */
+/** Client-side chunk: block data plus its renderable meshes (opaque + water). */
 export class Chunk {
   mesh: THREE.Mesh | null = null;
+  waterMesh: THREE.Mesh | null = null;
 
   constructor(
     readonly cx: number,

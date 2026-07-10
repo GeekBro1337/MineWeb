@@ -1,4 +1,4 @@
-import type { WorldInfo } from '../../../shared/protocol';
+import type { GameMode, WorldInfo } from '../../../shared/protocol';
 import { createSettingsForm, type Settings } from '../game/Settings';
 import { createWorld, deleteWorld, listWorlds } from '../game/WorldsApi';
 
@@ -23,6 +23,8 @@ export class Menu {
   private seedInput!: HTMLInputElement;
   private createErrorEl!: HTMLElement;
   private settingsHost!: HTMLElement;
+  private createMode: GameMode = 'survival';
+  private modeButtons: { mode: GameMode; el: HTMLButtonElement }[] = [];
   /** True while a create request is in flight, to reject double submits. */
   private creating = false;
 
@@ -141,10 +143,26 @@ export class Menu {
     this.seedInput.placeholder = 'случайный';
     seedLabel.appendChild(this.seedInput);
 
+    const modeLabel = document.createElement('div');
+    modeLabel.className = 'field';
+    modeLabel.innerHTML = '<span>Режим игры</span>';
+    const modeRow = document.createElement('div');
+    modeRow.className = 'mode-toggle';
+    const modes: { mode: GameMode; label: string }[] = [
+      { mode: 'survival', label: 'Выживание' },
+      { mode: 'creative', label: 'Творческий' },
+    ];
+    this.modeButtons = modes.map(({ mode, label }) => {
+      const el = this.button(label, '', () => this.setCreateMode(mode));
+      modeRow.appendChild(el);
+      return { mode, el };
+    });
+    modeLabel.appendChild(modeRow);
+
     this.createErrorEl = document.createElement('p');
     this.createErrorEl.className = 'form-error';
 
-    form.append(nameLabel, seedLabel, this.createErrorEl);
+    form.append(nameLabel, seedLabel, modeLabel, this.createErrorEl);
 
     const row = document.createElement('div');
     row.className = 'btn-row';
@@ -174,8 +192,14 @@ export class Menu {
     this.showScreen('settings');
   }
 
+  private setCreateMode(mode: GameMode): void {
+    this.createMode = mode;
+    for (const b of this.modeButtons) b.el.classList.toggle('primary', b.mode === mode);
+  }
+
   private openCreate(): void {
     this.createErrorEl.textContent = '';
+    this.setCreateMode(this.createMode);
     this.showScreen('create');
     this.nameInput.focus();
     this.nameInput.select();
@@ -188,7 +212,7 @@ export class Menu {
     this.creating = true;
     this.createErrorEl.textContent = '';
     try {
-      const info = await createWorld(this.nameInput.value, this.seedInput.value);
+      const info = await createWorld(this.nameInput.value, this.seedInput.value, this.createMode);
       this.cb.onPlay(info.id);
     } catch (err) {
       this.createErrorEl.textContent = 'Не удалось создать мир. Сервер запущен?';
@@ -231,7 +255,8 @@ export class Menu {
       name.textContent = world.name;
       const sub = document.createElement('div');
       sub.className = 'world-sub';
-      sub.textContent = `сид ${world.seed} · ${new Date(world.lastPlayed).toLocaleString()}`;
+      const modeLabel = world.mode === 'creative' ? 'Творческий' : 'Выживание';
+      sub.textContent = `${modeLabel} · сид ${world.seed} · ${new Date(world.lastPlayed).toLocaleString()}`;
       meta.append(name, sub);
 
       const actions = document.createElement('div');

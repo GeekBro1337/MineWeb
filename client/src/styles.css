@@ -113,6 +113,54 @@ body {
   font-size: 10px;
 }
 
+.hotbar-count {
+  position: absolute;
+  bottom: 1px;
+  right: 4px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 1px 1px 0 #000;
+}
+
+/* ---- Hearts (survival HP) ----------------------------------------------- */
+
+.hearts {
+  position: absolute;
+  bottom: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  gap: 1px;
+}
+
+.heart {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  line-height: 16px;
+}
+
+.heart-bg,
+.heart-fg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.heart-bg {
+  color: #3a1010;
+}
+
+.heart-fg {
+  color: #e23b3b;
+  width: 100%;
+}
+
 .status {
   position: absolute;
   top: 50%;
@@ -146,8 +194,7 @@ body {
 }
 
 .pause-screen {
-  background: rgba(6, 12, 18, 0.72);
-  backdrop-filter: blur(2px);
+  background: rgba(6, 12, 18, 0.78);
 }
 
 .panel {
@@ -368,4 +415,165 @@ body {
   width: 100%;
   accent-color: #4f9d3f;
   cursor: pointer;
+}
+
+/* ---- Inventory / crafting / furnace screens ----------------------------- */
+
+.inventory-screen,
+.furnace-screen {
+  background: rgba(6, 12, 18, 0.78);
+}
+
+.inv-window {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 26px;
+  background: rgba(24, 28, 34, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+}
+
+.inv-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f2f2f2;
+}
+
+.slot {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  background-size: 80% 80%;
+  background-position: center;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+
+.slot:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.slot-count {
+  position: absolute;
+  bottom: 0;
+  right: 3px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+}
+
+.result-slot {
+  border-color: rgba(120, 200, 120, 0.6);
+  background-color: rgba(80, 150, 80, 0.15);
+}
+
+.craft-area,
+.furnace-area {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.craft-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  gap: 4px;
+}
+
+.craft-arrow,
+.furnace-arrow {
+  color: #cfcfcf;
+  font-size: 22px;
+}
+
+.furnace-arrow {
+  position: relative;
+  width: 46px;
+  height: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.furnace-arrow-fill {
+  height: 100%;
+  width: 0;
+  background: #c9a06a;
+}
+
+.furnace-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.furnace-flame {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.furnace-flame-fill {
+  width: 100%;
+  height: 0;
+  background: linear-gradient(#ffd24a, #ff7a2f);
+}
+
+.inv-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inv-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 44px);
+  gap: 4px;
+}
+
+.inv-hotbar-row {
+  margin-top: 6px;
+}
+
+/* Floating cursor stack while dragging. */
+.drag-cursor {
+  position: fixed;
+  width: 40px;
+  height: 40px;
+  margin-left: -20px;
+  margin-top: -20px;
+  background-size: 80% 80%;
+  background-position: center;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+  z-index: 40;
+}
+
+/* ---- Create-world mode toggle ------------------------------------------- */
+
+.mode-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.mode-toggle .menu-btn {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 14px;
 }

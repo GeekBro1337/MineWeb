@@ -1,4 +1,4 @@
-import type { WorldInfo } from '../../../shared/protocol';
+import type { GameMode, WorldInfo } from '../../../shared/protocol';
 
 /** REST client for the world-selection menu. */
 export async function listWorlds(): Promise<WorldInfo[]> {
@@ -8,11 +8,11 @@ export async function listWorlds(): Promise<WorldInfo[]> {
   return body.worlds;
 }
 
-export async function createWorld(name: string, seed: string): Promise<WorldInfo> {
+export async function createWorld(name: string, seed: string, mode: GameMode): Promise<WorldInfo> {
   const res = await fetch('/api/worlds', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, seed }),
+    body: JSON.stringify({ name, seed, mode }),
   });
   if (!res.ok) throw new Error(`create world failed: HTTP ${res.status}`);
   return res.json();
@@ -21,4 +21,13 @@ export async function createWorld(name: string, seed: string): Promise<WorldInfo
 export async function deleteWorld(id: string): Promise<void> {
   const res = await fetch(`/api/worlds/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`delete world failed: HTTP ${res.status}`);
+}
+
+export async function setWorldMode(id: string, mode: GameMode): Promise<void> {
+  const res = await fetch(`/api/worlds/${id}/mode`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  });
+  if (!res.ok) throw new Error(`set mode failed: HTTP ${res.status}`);
 }

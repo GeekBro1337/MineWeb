@@ -18,8 +18,11 @@ export const SocketEvents = {
   ServerError: 'server:error',
 } as const;
 
+export type GameMode = 'survival' | 'creative';
+
 export interface WorldMeta {
   seed: number;
+  mode: GameMode;
   chunkSizeX: number;
   chunkSizeZ: number;
   chunkHeight: number;
@@ -31,6 +34,7 @@ export interface WorldInfo {
   id: string;
   name: string;
   seed: number;
+  mode: GameMode;
   createdAt: number;
   lastPlayed: number;
 }

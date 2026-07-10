@@ -1,20 +1,29 @@
-import { blockName, HOTBAR_BLOCKS } from './BlockRegistry';
-import { blockIconUrl } from './Textures';
+import { ITEMS, type ItemId } from '../../../shared/items';
+import { itemIconUrl } from './Textures';
 
 const FPS_UPDATE_INTERVAL_MS = 500;
+const HOTBAR_SLOTS = 9;
+const HEARTS = 10;
 
-/** In-game DOM overlay: crosshair, FPS/time/coords readout, hotbar, transient status. */
+export interface HotbarSlotView {
+  item: ItemId | null;
+  /** null = infinite (creative). */
+  count: number | null;
+}
+
+/** In-game DOM overlay: crosshair, readout, hearts, item hotbar, transient status. */
 export class HUD {
   private root: HTMLElement;
   private fpsEl: HTMLElement;
   private coordsEl: HTMLElement;
-  private blockEl: HTMLElement;
   private timeEl: HTMLElement;
   private statusEl: HTMLElement;
+  private heartsEl: HTMLElement;
+  private hotbarEl: HTMLElement;
   private hotbarSlots: HTMLElement[] = [];
+  private heartFills: HTMLElement[] = [];
 
   private frames = 0;
-  /** Set on the first update() call — the HUD is built before the game loop starts. */
   private lastFpsUpdate: number | null = null;
 
   constructor(root: HTMLElement) {
@@ -27,31 +36,45 @@ export class HUD {
         <div data-id="fps">FPS: —</div>
         <div data-id="time">— —:—</div>
         <div data-id="coords">X — Y — Z —</div>
-        <div data-id="block">Block: —</div>
       </div>
-      <div class="hotbar"></div>
+      <div class="hearts" data-id="hearts"></div>
+      <div class="hotbar" data-id="hotbar"></div>
       <div class="status" data-id="status"></div>
     `;
     root.appendChild(hud);
 
     this.fpsEl = hud.querySelector('[data-id="fps"]')!;
     this.coordsEl = hud.querySelector('[data-id="coords"]')!;
-    this.blockEl = hud.querySelector('[data-id="block"]')!;
     this.timeEl = hud.querySelector('[data-id="time"]')!;
     this.statusEl = hud.querySelector('[data-id="status"]')!;
+    this.heartsEl = hud.querySelector('[data-id="hearts"]')!;
+    this.hotbarEl = hud.querySelector('[data-id="hotbar"]')!;
 
-    const hotbar = hud.querySelector('.hotbar')!;
-    HOTBAR_BLOCKS.forEach((id, i) => {
+    for (let i = 0; i < HOTBAR_SLOTS; i++) {
       const slot = document.createElement('div');
       slot.className = 'hotbar-slot';
       slot.innerHTML = `
         <span class="hotbar-key">${i + 1}</span>
-        <span class="hotbar-swatch" style="background-image:url(${blockIconUrl(id)})"></span>
+        <span class="hotbar-swatch"></span>
+        <span class="hotbar-count"></span>
       `;
-      slot.title = blockName(id);
-      hotbar.appendChild(slot);
+      this.hotbarEl.appendChild(slot);
       this.hotbarSlots.push(slot);
-    });
+    }
+
+    for (let i = 0; i < HEARTS; i++) {
+      const heart = document.createElement('span');
+      heart.className = 'heart';
+      const bg = document.createElement('span');
+      bg.className = 'heart-bg';
+      bg.textContent = '♥';
+      const fg = document.createElement('span');
+      fg.className = 'heart-fg';
+      fg.textContent = '♥';
+      heart.append(bg, fg);
+      this.heartsEl.appendChild(heart);
+      this.heartFills.push(fg);
+    }
   }
 
   setStatus(text: string | null): void {
@@ -63,9 +86,35 @@ export class HUD {
     this.timeEl.textContent = text;
   }
 
-  setSelectedSlot(index: number): void {
-    this.hotbarSlots.forEach((slot, i) => slot.classList.toggle('active', i === index));
-    this.blockEl.textContent = `Block: ${blockName(HOTBAR_BLOCKS[index])}`;
+  setHealthVisible(visible: boolean): void {
+    this.heartsEl.style.display = visible ? 'flex' : 'none';
+  }
+
+  setHealth(health: number, max: number): void {
+    const hpPerHeart = max / HEARTS;
+    for (let i = 0; i < HEARTS; i++) {
+      const fill = Math.max(0, Math.min(1, (health - i * hpPerHeart) / hpPerHeart));
+      this.heartFills[i].style.width = `${fill * 100}%`;
+    }
+  }
+
+  setHotbar(view: HotbarSlotView[], selected: number): void {
+    for (let i = 0; i < HOTBAR_SLOTS; i++) {
+      const slot = this.hotbarSlots[i];
+      const cell = view[i];
+      const swatch = slot.querySelector('.hotbar-swatch') as HTMLElement;
+      const count = slot.querySelector('.hotbar-count') as HTMLElement;
+      if (cell && cell.item) {
+        swatch.style.backgroundImage = `url(${itemIconUrl(cell.item)})`;
+        slot.title = ITEMS[cell.item].name;
+        count.textContent = cell.count !== null && cell.count > 1 ? String(cell.count) : '';
+      } else {
+        swatch.style.backgroundImage = '';
+        slot.title = '';
+        count.textContent = '';
+      }
+      slot.classList.toggle('active', i === selected);
+    }
   }
 
   /** Call once per frame. */

@@ -24,9 +24,22 @@ export function createWorldsRouter(manager: WorldManager, io: Server): Router {
   });
 
   router.post('/', (req, res) => {
-    const { name, seed } = (req.body ?? {}) as { name?: unknown; seed?: unknown };
-    const info = manager.create(name, seed);
+    const { name, seed, mode } = (req.body ?? {}) as {
+      name?: unknown;
+      seed?: unknown;
+      mode?: unknown;
+    };
+    const info = manager.create(name, seed, mode === 'creative' ? 'creative' : 'survival');
     res.status(201).json(info);
+  });
+
+  router.put('/:id/mode', (req, res) => {
+    const mode = (req.body ?? {}).mode === 'creative' ? 'creative' : 'survival';
+    if (!manager.setMode(req.params.id, mode)) {
+      res.status(404).json({ error: 'world not found' });
+      return;
+    }
+    res.json({ ok: true, mode });
   });
 
   router.delete('/:id', (req, res) => {

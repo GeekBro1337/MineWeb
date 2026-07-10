@@ -2,7 +2,12 @@ export interface InputActions {
   onBreakBlock: () => void;
   onPlaceBlock: () => void;
   onSelectSlot: (slot: number) => void;
+  onToggleInventory: () => void;
+  onToggleFly: () => void;
 }
+
+/** Max ms between two Space presses to count as a fly toggle. */
+const DOUBLE_TAP_MS = 300;
 
 /**
  * Keyboard + mouse state. Movement keys and mouse look are only active while
@@ -17,6 +22,7 @@ export class Input {
   private mouseDeltaY = 0;
   private lockRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
+  private lastSpaceTime = 0;
 
   constructor(
     private element: HTMLElement,
@@ -29,6 +35,14 @@ export class Input {
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
     window.addEventListener('blur', this.handleBlur);
+  }
+
+  /** Cancels a pending re-lock retry (e.g. when a menu/inventory opens the cursor). */
+  cancelPendingLock(): void {
+    if (this.lockRetryTimer !== null) {
+      clearTimeout(this.lockRetryTimer);
+      this.lockRetryTimer = null;
+    }
   }
 
   /** Removes all listeners and releases pointer lock (on leaving the world). */
@@ -80,6 +94,10 @@ export class Input {
     return this.keys.has('Space');
   }
 
+  get sneak(): boolean {
+    return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+  }
+
   /** Returns the accumulated mouse movement since the last call and resets it. */
   consumeMouseDelta(): { dx: number; dy: number } {
     const delta = { dx: this.mouseDeltaX, dy: this.mouseDeltaY };
@@ -109,6 +127,18 @@ export class Input {
   private handleKeyDown = (e: KeyboardEvent): void => {
     if (!this.pointerLocked) return;
     if (e.code === 'Space') e.preventDefault();
+
+    // Double-tap Space toggles flight (creative).
+    if (e.code === 'Space' && !e.repeat) {
+      const now = performance.now();
+      if (now - this.lastSpaceTime < DOUBLE_TAP_MS) this.actions.onToggleFly();
+      this.lastSpaceTime = now;
+    }
+    if (e.code === 'KeyE' && !e.repeat) {
+      this.actions.onToggleInventory();
+      return;
+    }
+
     this.keys.add(e.code);
 
     const digit = e.code.match(/^Digit([1-9])$/);

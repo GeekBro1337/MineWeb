@@ -1,3 +1,4 @@
+import type { GameMode } from '../../../shared/protocol';
 import { createSettingsForm, type GameSettings, type Settings } from '../game/Settings';
 
 export interface PauseCallbacks {
@@ -7,6 +8,8 @@ export interface PauseCallbacks {
   onQuit: () => void;
   /** A settings value changed — apply it live. */
   onSettingChange?: (key: keyof GameSettings) => void;
+  /** Switch survival ⇄ creative. */
+  onToggleMode: () => void;
 }
 
 /**
@@ -18,6 +21,7 @@ export class PauseOverlay {
   private el: HTMLElement;
   private mainPanel: HTMLElement;
   private settingsPanel: HTMLElement;
+  private modeButton: HTMLButtonElement;
 
   constructor(root: HTMLElement, settings: Settings, cb: PauseCallbacks) {
     this.el = document.createElement('div');
@@ -30,13 +34,15 @@ export class PauseOverlay {
       <h1 class="panel-title">Пауза</h1>
       <div class="btn-column"></div>
       <ul class="controls-hint">
-        <li><b>W A S D</b> — движение · <b>Space</b> — прыжок</li>
-        <li><b>Мышь</b> — обзор · <b>ЛКМ/ПКМ</b> — ломать/ставить</li>
-        <li><b>1–4</b> — выбор блока · <b>Esc</b> — пауза</li>
+        <li><b>W A S D</b> — движение · <b>Space</b> — прыжок · <b>2×Space</b> — полёт (творч.)</li>
+        <li><b>Мышь</b> — обзор · <b>ЛКМ/ПКМ</b> — ломать/ставить · <b>E</b> — инвентарь</li>
+        <li><b>1–9</b> — слот · <b>ПКМ по печи</b> — открыть · <b>Esc</b> — пауза</li>
       </ul>
     `;
     const col = this.mainPanel.querySelector('.btn-column')!;
     col.appendChild(this.button('Продолжить', 'primary', cb.onResume));
+    this.modeButton = this.button('Режим: —', '', cb.onToggleMode);
+    col.appendChild(this.modeButton);
     col.appendChild(this.button('Настройки', '', () => this.showSettings()));
     col.appendChild(this.button('Выйти в меню', 'danger', cb.onQuit));
 
@@ -60,6 +66,10 @@ export class PauseOverlay {
     b.textContent = label;
     b.addEventListener('click', onClick);
     return b;
+  }
+
+  setMode(mode: GameMode): void {
+    this.modeButton.textContent = `Режим: ${mode === 'creative' ? 'Творческий' : 'Выживание'}`;
   }
 
   show(): void {

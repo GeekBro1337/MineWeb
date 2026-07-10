@@ -11,6 +11,7 @@ import { BlockId, isSolid } from './BlockRegistry';
 import { Chunk } from './Chunk';
 import { buildChunkGeometry } from './ChunkMesher';
 import type { Network } from './Network';
+import type { BlockMaterials } from './Textures';
 
 /** Solid core (radius, in chunks) fetched synchronously before the game starts. */
 const INITIAL_LOAD_RADIUS = 3;
@@ -31,8 +32,9 @@ export class World {
   private dirty = new Set<string>();
   /** Remote edits for chunks whose fetch is still in flight, replayed on arrival. */
   private pendingEdits = new Map<string, Array<{ x: number; y: number; z: number; id: BlockId }>>();
-  /** One material per block texture; set via setMaterials() before the first mesh build. */
+  /** Opaque block materials + the translucent water material; set before meshing. */
   private materials: THREE.Material[] = [];
+  private waterMaterial: THREE.Material | null = null;
 
   /** Chebyshev radius (chunks) kept loaded around the player; from settings. */
   private renderDistance: number;
@@ -56,8 +58,9 @@ export class World {
   }
 
   /** Must be called with the loaded block textures before loadInitial(). */
-  setMaterials(materials: THREE.Material[]): void {
-    this.materials = materials;
+  setMaterials(materials: BlockMaterials): void {
+    this.materials = materials.opaque;
+    this.waterMaterial = materials.water;
   }
 
   getBlock(x: number, y: number, z: number): BlockId {
@@ -213,11 +216,7 @@ export class World {
   private unloadChunk(chunk: Chunk): void {
     this.chunks.delete(chunk.key);
     this.dirty.delete(chunk.key);
-    if (chunk.mesh) {
-      this.scene.remove(chunk.mesh);
-      chunk.mesh.geometry.dispose();
-      chunk.mesh = null;
-    }
+    this.disposeMeshes(chunk);
     // Mirror of loadChunk: still-loaded neighbors had their border faces
     // culled against this chunk's blocks — rebuild them against Air, or the
     // boundary becomes a permanent see-through hole.
@@ -239,39 +238,53 @@ export class World {
     }
   }
 
-  private rebuildChunkMesh(chunk: Chunk): void {
+  private disposeMeshes(chunk: Chunk): void {
     if (chunk.mesh) {
       this.scene.remove(chunk.mesh);
       chunk.mesh.geometry.dispose();
       chunk.mesh = null;
     }
-    const geometry = buildChunkGeometry(chunk, (x, y, z) => this.getBlock(x, y, z));
-    if (!geometry) return;
-    const mesh = new THREE.Mesh(geometry, this.materials);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.position.set(chunk.cx * CHUNK_SIZE_X, 0, chunk.cz * CHUNK_SIZE_Z);
-    this.scene.add(mesh);
-    chunk.mesh = mesh;
+    if (chunk.waterMesh) {
+      this.scene.remove(chunk.waterMesh);
+      chunk.waterMesh.geometry.dispose();
+      chunk.waterMesh = null;
+    }
+  }
+
+  private rebuildChunkMesh(chunk: Chunk): void {
+    this.disposeMeshes(chunk);
+    const { opaque, water } = buildChunkGeometry(chunk, (x, y, z) => this.getBlock(x, y, z));
+    const ox = chunk.cx * CHUNK_SIZE_X;
+    const oz = chunk.cz * CHUNK_SIZE_Z;
+    if (opaque) {
+      const mesh = new THREE.Mesh(opaque, this.materials);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.position.set(ox, 0, oz);
+      this.scene.add(mesh);
+      chunk.mesh = mesh;
+    }
+    if (water && this.waterMaterial) {
+      const mesh = new THREE.Mesh(water, this.waterMaterial);
+      mesh.position.set(ox, 0, oz);
+      this.scene.add(mesh);
+      chunk.waterMesh = mesh;
+    }
   }
 
   /** Frees all chunk meshes and block textures/materials (on leaving the world). */
   dispose(): void {
-    for (const chunk of this.chunks.values()) {
-      if (chunk.mesh) {
-        this.scene.remove(chunk.mesh);
-        chunk.mesh.geometry.dispose();
-        chunk.mesh = null;
-      }
-    }
+    for (const chunk of this.chunks.values()) this.disposeMeshes(chunk);
     this.chunks.clear();
     this.dirty.clear();
     this.pendingEdits.clear();
-    for (const material of this.materials) {
+    const all = this.waterMaterial ? [...this.materials, this.waterMaterial] : this.materials;
+    for (const material of all) {
       const map = (material as THREE.MeshLambertMaterial).map;
       if (map) map.dispose();
       material.dispose();
     }
     this.materials = [];
+    this.waterMaterial = null;
   }
 }

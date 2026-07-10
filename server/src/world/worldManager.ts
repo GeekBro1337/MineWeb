@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import type { WorldInfo } from '../../../shared/protocol';
+import type { GameMode, WorldInfo } from '../../../shared/protocol';
 import { WorldStore } from './worldStore';
 
 interface IndexFile {
@@ -60,6 +60,7 @@ export class WorldManager {
       const raw = JSON.parse(fs.readFileSync(this.indexPath, 'utf-8')) as IndexFile;
       for (const w of raw.worlds ?? []) {
         if (w && typeof w.id === 'string' && typeof w.seed === 'number') {
+          if (w.mode !== 'creative' && w.mode !== 'survival') w.mode = 'survival';
           this.index.set(w.id, w);
         }
       }
@@ -93,19 +94,20 @@ export class WorldManager {
     return this.index.has(id);
   }
 
-  create(name: unknown, seedInput?: unknown): WorldInfo {
+  create(name: unknown, seedInput?: unknown, mode: GameMode = 'survival'): WorldInfo {
     const cleanName =
       (typeof name === 'string' ? name : '').trim().slice(0, MAX_NAME_LEN) || 'New World';
     const seed = resolveSeed(seedInput);
+    const gameMode: GameMode = mode === 'creative' ? 'creative' : 'survival';
     const id = crypto.randomUUID();
     const now = Date.now();
-    const info: WorldInfo = { id, name: cleanName, seed, createdAt: now, lastPlayed: now };
+    const info: WorldInfo = { id, name: cleanName, seed, mode: gameMode, createdAt: now, lastPlayed: now };
     this.index.set(id, info);
     // Seed lives in index.json, so the world regenerates identically even before
     // any edit creates its own file.
-    this.stores.set(id, new WorldStore(this.fileFor(id), seed));
+    this.stores.set(id, new WorldStore(this.fileFor(id), seed, gameMode));
     this.saveIndex();
-    console.log(`[worlds] created "${cleanName}" (${id}) seed=${seed}`);
+    console.log(`[worlds] created "${cleanName}" (${id}) seed=${seed} mode=${gameMode}`);
     return info;
   }
 
@@ -115,10 +117,21 @@ export class WorldManager {
     if (!info) return null;
     let store = this.stores.get(id);
     if (!store) {
-      store = new WorldStore(this.fileFor(id), info.seed);
+      store = new WorldStore(this.fileFor(id), info.seed, info.mode);
       this.stores.set(id, store);
     }
     return store;
+  }
+
+  /** Switches a world's game mode (survival ⇄ creative) and persists it. */
+  setMode(id: string, mode: GameMode): boolean {
+    const info = this.index.get(id);
+    if (!info) return false;
+    info.mode = mode === 'creative' ? 'creative' : 'survival';
+    const store = this.stores.get(id);
+    if (store) store.mode = info.mode;
+    this.saveIndex();
+    return true;
   }
 
   /** Marks a world as just played (updates ordering in the menu). */

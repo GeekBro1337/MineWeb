@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { BLOCKS, BlockId, HOTBAR_BLOCKS, isSolid } from '../../../shared/blocks';
+import { BLOCKS, BlockId, isSolid, isWater } from '../../../shared/blocks';
 
 // Client-side entry point for block data; definitions live in /shared.
-export { BLOCKS, BlockId, HOTBAR_BLOCKS, isSolid };
+export { BLOCKS, BlockId, isSolid, isWater };
 
 const colorCache = new Map<BlockId, THREE.Color>();
 

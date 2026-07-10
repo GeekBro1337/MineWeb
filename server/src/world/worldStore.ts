@@ -9,7 +9,7 @@ import {
   chunkCoord,
   localCoord,
 } from '../../../shared/constants';
-import type { WorldMeta } from '../../../shared/protocol';
+import type { GameMode, WorldMeta } from '../../../shared/protocol';
 import { BlockId, isValidBlockId, isSolid } from './blockTypes';
 import { WorldGenerator } from './generator';
 import { Chunk } from './chunk';
@@ -38,7 +38,11 @@ export class WorldStore {
   /** Once closed (world deleted or shutdown), edits are rejected and no save is scheduled. */
   private closed = false;
 
-  constructor(private readonly filePath: string, defaultSeed = DEFAULT_SEED) {
+  constructor(
+    private readonly filePath: string,
+    defaultSeed = DEFAULT_SEED,
+    public mode: GameMode = 'survival',
+  ) {
     let seed = defaultSeed;
     if (fs.existsSync(filePath)) {
       try {
@@ -110,6 +114,7 @@ export class WorldStore {
   getMeta(): WorldMeta {
     return {
       seed: this.seed,
+      mode: this.mode,
       chunkSizeX: CHUNK_SIZE_X,
       chunkSizeZ: CHUNK_SIZE_Z,
       chunkHeight: CHUNK_HEIGHT,
