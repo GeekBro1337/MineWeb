@@ -6,32 +6,52 @@ import type {
   PlayerStateMessage,
 } from '../../../shared/protocol';
 import { SocketEvents } from '../../../shared/protocol';
-import type { WorldStore } from '../world/worldStore';
+import { worldRoom } from '../api/worldsRoutes';
+import type { WorldManager } from '../world/worldManager';
+
+interface TrackedPlayer {
+  worldId: string;
+  state: PlayerStateMessage;
+}
 
 /**
- * Realtime layer. Tracks connected players and relays world edits.
- * Block updates are broadcast to every client (including the sender, which
- * treats the echo as an idempotent confirmation), so adding real multiplayer
- * later is just a matter of rendering the other players.
+ * Realtime layer. Each connection joins the room of the world it selected
+ * (passed as a handshake query), and block/position events are scoped to that
+ * room — so different worlds are isolated and adding real multiplayer per world
+ * is just a matter of rendering the other players in the same room.
  */
-export function setupSocketServer(io: Server, store: WorldStore): void {
-  const players = new Map<string, PlayerStateMessage>();
+export function setupSocketServer(io: Server, manager: WorldManager): void {
+  const players = new Map<string, TrackedPlayer>();
 
   io.on('connection', (socket: Socket) => {
-    console.log(`[socket] player connected: ${socket.id}`);
+    const worldId = String(socket.handshake.query.worldId ?? '');
+    const store = manager.getStore(worldId);
+    if (!store) {
+      socket.emit(SocketEvents.ServerError, 'world not found');
+      socket.disconnect(true);
+      return;
+    }
 
+    const room = worldRoom(worldId);
+    socket.join(room);
+    manager.touch(worldId);
+    console.log(`[socket] ${socket.id} joined world ${worldId}`);
+
+    const roomPlayers = [...players.values()]
+      .filter((p) => p.worldId === worldId)
+      .map((p) => p.state);
     const init: InitMessage = {
       playerId: socket.id,
       meta: store.getMeta(),
-      players: [...players.values()],
+      players: roomPlayers,
     };
     socket.emit(SocketEvents.Init, init);
-    socket.broadcast.emit(SocketEvents.PlayerJoined, { playerId: socket.id });
+    socket.to(room).emit(SocketEvents.PlayerJoined, { playerId: socket.id });
 
     socket.on(SocketEvents.BlockSet, (msg: BlockSetMessage) => {
       if (!msg || typeof msg !== 'object') return;
       if (store.setBlock(msg.x, msg.y, msg.z, msg.id)) {
-        io.emit(SocketEvents.BlockUpdate, { x: msg.x, y: msg.y, z: msg.z, id: msg.id });
+        io.to(room).emit(SocketEvents.BlockUpdate, { x: msg.x, y: msg.y, z: msg.z, id: msg.id });
       }
     });
 
@@ -45,14 +65,14 @@ export function setupSocketServer(io: Server, store: WorldStore): void {
         yaw: Number(msg.yaw) || 0,
         pitch: Number(msg.pitch) || 0,
       };
-      players.set(socket.id, state);
-      socket.broadcast.emit(SocketEvents.PlayerState, state);
+      players.set(socket.id, { worldId, state });
+      socket.to(room).emit(SocketEvents.PlayerState, state);
     });
 
     socket.on('disconnect', () => {
       players.delete(socket.id);
-      socket.broadcast.emit(SocketEvents.PlayerLeft, { playerId: socket.id });
-      console.log(`[socket] player disconnected: ${socket.id}`);
+      socket.to(room).emit(SocketEvents.PlayerLeft, { playerId: socket.id });
+      console.log(`[socket] ${socket.id} left world ${worldId}`);
     });
   });
 }

@@ -12,11 +12,12 @@ import { Chunk } from './Chunk';
 import { buildChunkGeometry } from './ChunkMesher';
 import type { Network } from './Network';
 
-/** Chunks are kept loaded within this Chebyshev radius around the player. */
-const RENDER_DISTANCE = 3;
-const UNLOAD_DISTANCE = RENDER_DISTANCE + 1;
-/** Cap mesh rebuilds per frame so the initial load doesn't freeze one frame. */
-const MAX_REBUILDS_PER_FRAME = 8;
+/** Solid core (radius, in chunks) fetched synchronously before the game starts. */
+const INITIAL_LOAD_RADIUS = 3;
+/** Cap mesh rebuilds per frame so streaming never freezes a frame. */
+const MAX_REBUILDS_PER_FRAME = 6;
+/** Cap new chunk fetches started per frame; nearest chunks are requested first. */
+const MAX_LOADS_PER_FRAME = 8;
 
 const NEIGHBOR_OFFSETS: Array<[number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
@@ -33,10 +34,26 @@ export class World {
   /** One material per block texture; set via setMaterials() before the first mesh build. */
   private materials: THREE.Material[] = [];
 
+  /** Chebyshev radius (chunks) kept loaded around the player; from settings. */
+  private renderDistance: number;
+
   constructor(
     private scene: THREE.Scene,
     private network: Network,
-  ) {}
+    renderDistance: number,
+  ) {
+    this.renderDistance = renderDistance;
+  }
+
+  private get unloadDistance(): number {
+    // Small hysteresis so chunks at the edge don't thrash load/unload.
+    return this.renderDistance + 2;
+  }
+
+  /** Live-update the render distance (from the settings slider). */
+  setRenderDistance(distance: number): void {
+    this.renderDistance = distance;
+  }
 
   /** Must be called with the loaded block textures before loadInitial(). */
   setMaterials(materials: THREE.Material[]): void {
@@ -114,36 +131,55 @@ export class World {
     this.setBlockLocal(x, y, z, id);
   }
 
-  /** Loads every chunk around the spawn point before the game starts. */
+  /**
+   * Fetches just the core of chunks around the spawn point so the player never
+   * spawns into unloaded (solid) terrain. The rest of the render distance is
+   * streamed in progressively by update() once the game loop is running.
+   */
   async loadInitial(centerX: number, centerZ: number): Promise<void> {
-    await this.streamChunks(centerX, centerZ, true);
+    const pcx = chunkCoord(Math.floor(centerX), CHUNK_SIZE_X);
+    const pcz = chunkCoord(Math.floor(centerZ), CHUNK_SIZE_Z);
+    const coreRadius = Math.min(INITIAL_LOAD_RADIUS, this.renderDistance);
+    const loads: Promise<void>[] = [];
+    for (let cx = pcx - coreRadius; cx <= pcx + coreRadius; cx++) {
+      for (let cz = pcz - coreRadius; cz <= pcz + coreRadius; cz++) {
+        loads.push(this.loadChunk(cx, cz));
+      }
+    }
+    await Promise.all(loads);
     this.rebuildDirty(Infinity);
   }
 
   /** Called every frame: stream chunks around the player, rebuild dirty meshes. */
   update(playerX: number, playerZ: number): void {
-    void this.streamChunks(playerX, playerZ, false);
+    this.streamChunks(playerX, playerZ);
     this.rebuildDirty(MAX_REBUILDS_PER_FRAME);
   }
 
-  private async streamChunks(x: number, z: number, waitAll: boolean): Promise<void> {
+  private streamChunks(x: number, z: number): void {
     const pcx = chunkCoord(Math.floor(x), CHUNK_SIZE_X);
     const pcz = chunkCoord(Math.floor(z), CHUNK_SIZE_Z);
 
     for (const chunk of [...this.chunks.values()]) {
       const dist = Math.max(Math.abs(chunk.cx - pcx), Math.abs(chunk.cz - pcz));
-      if (dist > UNLOAD_DISTANCE) this.unloadChunk(chunk);
+      if (dist > this.unloadDistance) this.unloadChunk(chunk);
     }
 
-    const loads: Promise<void>[] = [];
-    for (let cx = pcx - RENDER_DISTANCE; cx <= pcx + RENDER_DISTANCE; cx++) {
-      for (let cz = pcz - RENDER_DISTANCE; cz <= pcz + RENDER_DISTANCE; cz++) {
+    // Collect the missing chunks in range, then fetch only the nearest few this
+    // frame so a large render distance loads smoothly instead of all at once.
+    const missing: Array<{ cx: number; cz: number; d: number }> = [];
+    for (let cx = pcx - this.renderDistance; cx <= pcx + this.renderDistance; cx++) {
+      for (let cz = pcz - this.renderDistance; cz <= pcz + this.renderDistance; cz++) {
         const key = chunkKey(cx, cz);
         if (this.chunks.has(key) || this.pending.has(key)) continue;
-        loads.push(this.loadChunk(cx, cz));
+        missing.push({ cx, cz, d: Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz)) });
       }
     }
-    if (waitAll) await Promise.all(loads);
+    if (missing.length === 0) return;
+    missing.sort((a, b) => a.d - b.d);
+    for (let i = 0; i < Math.min(MAX_LOADS_PER_FRAME, missing.length); i++) {
+      void this.loadChunk(missing[i].cx, missing[i].cz);
+    }
   }
 
   private async loadChunk(cx: number, cz: number): Promise<void> {
@@ -212,8 +248,30 @@ export class World {
     const geometry = buildChunkGeometry(chunk, (x, y, z) => this.getBlock(x, y, z));
     if (!geometry) return;
     const mesh = new THREE.Mesh(geometry, this.materials);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     mesh.position.set(chunk.cx * CHUNK_SIZE_X, 0, chunk.cz * CHUNK_SIZE_Z);
     this.scene.add(mesh);
     chunk.mesh = mesh;
+  }
+
+  /** Frees all chunk meshes and block textures/materials (on leaving the world). */
+  dispose(): void {
+    for (const chunk of this.chunks.values()) {
+      if (chunk.mesh) {
+        this.scene.remove(chunk.mesh);
+        chunk.mesh.geometry.dispose();
+        chunk.mesh = null;
+      }
+    }
+    this.chunks.clear();
+    this.dirty.clear();
+    this.pendingEdits.clear();
+    for (const material of this.materials) {
+      const map = (material as THREE.MeshLambertMaterial).map;
+      if (map) map.dispose();
+      material.dispose();
+    }
+    this.materials = [];
   }
 }

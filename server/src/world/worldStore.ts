@@ -35,6 +35,8 @@ export class WorldStore {
   private edits = new Map<string, Map<number, BlockId>>();
   private saveTimer: NodeJS.Timeout | null = null;
   private dirty = false;
+  /** Once closed (world deleted or shutdown), edits are rejected and no save is scheduled. */
+  private closed = false;
 
   constructor(private readonly filePath: string, defaultSeed = DEFAULT_SEED) {
     let seed = defaultSeed;
@@ -73,6 +75,9 @@ export class WorldStore {
 
   /** Apply a player edit in world coordinates. Returns false for invalid input. */
   setBlock(x: number, y: number, z: number, id: number): boolean {
+    // A deleted/closed world must not accept edits — otherwise a still-connected
+    // socket could re-schedule a save and resurrect the removed file on disk.
+    if (this.closed) return false;
     if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(z)) return false;
     if (y < 0 || y >= CHUNK_HEIGHT) return false;
     if (!isValidBlockId(id)) return false;
@@ -117,7 +122,7 @@ export class WorldStore {
   }
 
   private scheduleSave(): void {
-    if (this.saveTimer) return;
+    if (this.closed || this.saveTimer) return;
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
       this.save();
@@ -147,12 +152,13 @@ export class WorldStore {
     }
   }
 
-  /** Flush pending changes synchronously (used on shutdown). */
+  /** Flush pending changes synchronously and reject further edits (shutdown/delete). */
   close(): void {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
     this.save();
+    this.closed = true;
   }
 }

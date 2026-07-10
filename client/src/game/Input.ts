@@ -15,6 +15,8 @@ export class Input {
   private keys = new Set<string>();
   private mouseDeltaX = 0;
   private mouseDeltaY = 0;
+  private lockRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private disposed = false;
 
   constructor(
     private element: HTMLElement,
@@ -23,10 +25,28 @@ export class Input {
     document.addEventListener('pointerlockchange', this.handleLockChange);
     document.addEventListener('mousemove', this.handleMouseMove);
     document.addEventListener('mousedown', this.handleMouseDown);
-    document.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('contextmenu', this.handleContextMenu);
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
-    window.addEventListener('blur', () => this.keys.clear());
+    window.addEventListener('blur', this.handleBlur);
+  }
+
+  /** Removes all listeners and releases pointer lock (on leaving the world). */
+  dispose(): void {
+    this.disposed = true;
+    if (this.lockRetryTimer !== null) {
+      clearTimeout(this.lockRetryTimer);
+      this.lockRetryTimer = null;
+    }
+    document.removeEventListener('pointerlockchange', this.handleLockChange);
+    document.removeEventListener('mousemove', this.handleMouseMove);
+    document.removeEventListener('mousedown', this.handleMouseDown);
+    document.removeEventListener('contextmenu', this.handleContextMenu);
+    window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('keyup', this.handleKeyUp);
+    window.removeEventListener('blur', this.handleBlur);
+    if (this.pointerLocked) document.exitPointerLock();
+    this.onPointerLockChange = null;
   }
 
   requestPointerLock(): void {
@@ -36,8 +56,9 @@ export class Input {
     const result = this.element.requestPointerLock() as unknown;
     if (result instanceof Promise) {
       result.catch(() => {
-        setTimeout(() => {
-          if (this.pointerLocked) return;
+        this.lockRetryTimer = setTimeout(() => {
+          this.lockRetryTimer = null;
+          if (this.disposed || this.pointerLocked) return;
           const retry = this.element.requestPointerLock() as unknown;
           if (retry instanceof Promise) retry.catch(() => {});
         }, 1300);
@@ -96,5 +117,13 @@ export class Input {
 
   private handleKeyUp = (e: KeyboardEvent): void => {
     this.keys.delete(e.code);
+  };
+
+  private handleContextMenu = (e: MouseEvent): void => {
+    e.preventDefault();
+  };
+
+  private handleBlur = (): void => {
+    this.keys.clear();
   };
 }

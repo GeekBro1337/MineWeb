@@ -14,6 +14,8 @@ export const SocketEvents = {
   PlayerState: 'player:state',
   PlayerJoined: 'player:joined',
   PlayerLeft: 'player:left',
+  /** server -> client: fatal error (e.g. joined a world that no longer exists) */
+  ServerError: 'server:error',
 } as const;
 
 export interface WorldMeta {
@@ -22,6 +24,15 @@ export interface WorldMeta {
   chunkSizeZ: number;
   chunkHeight: number;
   spawn: { x: number; y: number; z: number };
+}
+
+/** A saved world as listed in the world-selection menu. */
+export interface WorldInfo {
+  id: string;
+  name: string;
+  seed: number;
+  createdAt: number;
+  lastPlayed: number;
 }
 
 export interface ChunkPayload {

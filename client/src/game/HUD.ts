@@ -3,15 +3,14 @@ import { blockIconUrl } from './Textures';
 
 const FPS_UPDATE_INTERVAL_MS = 500;
 
-/** DOM overlay: crosshair, FPS, coordinates, hotbar and the pointer-lock screen. */
+/** In-game DOM overlay: crosshair, FPS/time/coords readout, hotbar, transient status. */
 export class HUD {
-  onOverlayClick: (() => void) | null = null;
-
+  private root: HTMLElement;
   private fpsEl: HTMLElement;
   private coordsEl: HTMLElement;
   private blockEl: HTMLElement;
+  private timeEl: HTMLElement;
   private statusEl: HTMLElement;
-  private overlayEl: HTMLElement;
   private hotbarSlots: HTMLElement[] = [];
 
   private frames = 0;
@@ -21,37 +20,25 @@ export class HUD {
   constructor(root: HTMLElement) {
     const hud = document.createElement('div');
     hud.className = 'hud';
+    this.root = hud;
     hud.innerHTML = `
       <div class="crosshair"></div>
       <div class="hud-info">
         <div data-id="fps">FPS: —</div>
+        <div data-id="time">— —:—</div>
         <div data-id="coords">X — Y — Z —</div>
         <div data-id="block">Block: —</div>
       </div>
       <div class="hotbar"></div>
       <div class="status" data-id="status"></div>
-      <div class="overlay" data-id="overlay">
-        <h1>WebVoxel 3D</h1>
-        <p class="overlay-hint">Click to play</p>
-        <ul class="overlay-controls">
-          <li><b>W A S D</b> — move</li>
-          <li><b>Space</b> — jump</li>
-          <li><b>Mouse</b> — look around</li>
-          <li><b>LMB</b> — break block</li>
-          <li><b>RMB</b> — place block</li>
-          <li><b>1–4</b> — select block</li>
-          <li><b>Esc</b> — release mouse</li>
-        </ul>
-      </div>
     `;
     root.appendChild(hud);
 
     this.fpsEl = hud.querySelector('[data-id="fps"]')!;
     this.coordsEl = hud.querySelector('[data-id="coords"]')!;
     this.blockEl = hud.querySelector('[data-id="block"]')!;
+    this.timeEl = hud.querySelector('[data-id="time"]')!;
     this.statusEl = hud.querySelector('[data-id="status"]')!;
-    this.overlayEl = hud.querySelector('[data-id="overlay"]')!;
-    this.overlayEl.addEventListener('click', () => this.onOverlayClick?.());
 
     const hotbar = hud.querySelector('.hotbar')!;
     HOTBAR_BLOCKS.forEach((id, i) => {
@@ -72,8 +59,8 @@ export class HUD {
     this.statusEl.style.display = text ? 'block' : 'none';
   }
 
-  setOverlayVisible(visible: boolean): void {
-    this.overlayEl.style.display = visible ? 'flex' : 'none';
+  setClock(text: string): void {
+    this.timeEl.textContent = text;
   }
 
   setSelectedSlot(index: number): void {
@@ -93,5 +80,9 @@ export class HUD {
       this.lastFpsUpdate = now;
     }
     this.coordsEl.textContent = `X ${x.toFixed(1)}  Y ${y.toFixed(1)}  Z ${z.toFixed(1)}`;
+  }
+
+  dispose(): void {
+    this.root.remove();
   }
 }

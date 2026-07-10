@@ -3,15 +3,15 @@ import http from 'node:http';
 import path from 'node:path';
 import express from 'express';
 import { Server } from 'socket.io';
-import { createWorldRouter } from './api/worldRoutes';
+import { createWorldsRouter } from './api/worldsRoutes';
 import { setupSocketServer } from './socket/socketServer';
-import { WorldStore } from './world/worldStore';
+import { WorldManager } from './world/worldManager';
 
 const PORT = Number(process.env.PORT ?? 3000);
-// npm scripts run with cwd = /server, so the world lands in server/data/world.json.
-const WORLD_FILE = process.env.WORLD_FILE ?? path.resolve(process.cwd(), 'data/world.json');
+// npm scripts run with cwd = /server, so worlds land in server/data/worlds/.
+const DATA_DIR = process.env.DATA_DIR ?? path.resolve(process.cwd(), 'data');
 
-const store = new WorldStore(WORLD_FILE);
+const manager = new WorldManager(DATA_DIR);
 
 const app = express();
 app.use(express.json());
@@ -19,8 +19,8 @@ app.use(express.json());
 const httpServer = http.createServer(app);
 const io = new Server(httpServer);
 
-app.use('/api/world', createWorldRouter(store, io));
-setupSocketServer(io, store);
+app.use('/api/worlds', createWorldsRouter(manager, io));
+setupSocketServer(io, manager);
 
 // In production the same server serves the built client.
 //   dev  (tsx, runs from src/):           __dirname = server/src            -> ../../client/dist
@@ -42,8 +42,8 @@ httpServer.listen(PORT, () => {
 });
 
 function shutdown(): void {
-  console.log('\n[server] shutting down, saving world…');
-  store.close();
+  console.log('\n[server] shutting down, saving worlds…');
+  manager.closeAll();
   process.exit(0);
 }
 process.on('SIGINT', shutdown);
