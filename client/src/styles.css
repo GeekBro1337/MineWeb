@@ -97,9 +97,12 @@ body {
 }
 
 .hotbar-swatch {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 4px;
+  background-size: cover;
+  background-position: center;
+  image-rendering: pixelated;
 }
 
 .hotbar-key {

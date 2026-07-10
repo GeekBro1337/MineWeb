@@ -1,4 +1,5 @@
-import { blockCssColor, blockName, HOTBAR_BLOCKS } from './BlockRegistry';
+import { blockName, HOTBAR_BLOCKS } from './BlockRegistry';
+import { blockIconUrl } from './Textures';
 
 const FPS_UPDATE_INTERVAL_MS = 500;
 
@@ -58,7 +59,7 @@ export class HUD {
       slot.className = 'hotbar-slot';
       slot.innerHTML = `
         <span class="hotbar-key">${i + 1}</span>
-        <span class="hotbar-swatch" style="background:${blockCssColor(id)}"></span>
+        <span class="hotbar-swatch" style="background-image:url(${blockIconUrl(id)})"></span>
       `;
       slot.title = blockName(id);
       hotbar.appendChild(slot);

@@ -30,12 +30,18 @@ export class World {
   private dirty = new Set<string>();
   /** Remote edits for chunks whose fetch is still in flight, replayed on arrival. */
   private pendingEdits = new Map<string, Array<{ x: number; y: number; z: number; id: BlockId }>>();
-  private material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  /** One material per block texture; set via setMaterials() before the first mesh build. */
+  private materials: THREE.Material[] = [];
 
   constructor(
     private scene: THREE.Scene,
     private network: Network,
   ) {}
+
+  /** Must be called with the loaded block textures before loadInitial(). */
+  setMaterials(materials: THREE.Material[]): void {
+    this.materials = materials;
+  }
 
   getBlock(x: number, y: number, z: number): BlockId {
     if (y < 0 || y >= CHUNK_HEIGHT) return BlockId.Air;
@@ -205,7 +211,7 @@ export class World {
     }
     const geometry = buildChunkGeometry(chunk, (x, y, z) => this.getBlock(x, y, z));
     if (!geometry) return;
-    const mesh = new THREE.Mesh(geometry, this.material);
+    const mesh = new THREE.Mesh(geometry, this.materials);
     mesh.position.set(chunk.cx * CHUNK_SIZE_X, 0, chunk.cz * CHUNK_SIZE_Z);
     this.scene.add(mesh);
     chunk.mesh = mesh;

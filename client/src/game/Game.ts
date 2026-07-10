@@ -8,6 +8,7 @@ import { Network } from './Network';
 import { Player } from './Player';
 import { raycastVoxels, type VoxelRayHit } from './Raycaster';
 import { Renderer } from './Renderer';
+import { loadBlockMaterials } from './Textures';
 import { World } from './World';
 
 /** How far (in blocks) the player can break/place. */
@@ -65,6 +66,9 @@ export class Game {
   }
 
   async start(): Promise<void> {
+    this.hud.setStatus('Loading textures…');
+    this.world.setMaterials(await loadBlockMaterials(this.renderer.webgl));
+
     this.hud.setStatus('Loading world…');
     const meta = await this.network.fetchMeta();
     this.spawn.set(meta.spawn.x, meta.spawn.y, meta.spawn.z);
